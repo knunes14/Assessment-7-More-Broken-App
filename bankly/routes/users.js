@@ -63,26 +63,51 @@ router.get('/:username', authUser, requireLogin, async function(
  *
  */
 
-router.patch('/:username', authUser, requireLogin, requireAdmin, async function(
-  req,
-  res,
-  next
-) {
+// CONTAINS BUG #4
+// router.patch('/:username', authUser, requireLogin, requireAdmin, async function(
+//   req,
+//   res,
+//   next
+// ) {
+//   try {
+//     if (!req.curr_admin && req.curr_username !== req.params.username) {
+//       throw new ExpressError('Only  that user or admin can edit a user.', 401);
+//     }
+
+//     // get fields to change; remove token so we don't try to change it
+//     let fields = { ...req.body };
+//     delete fields._token;
+
+//     let user = await User.update(req.params.username, fields);
+//     return res.json({ user });
+//   } catch (err) {
+//     return next(err);
+//   }
+// }); 
+
+// FIXES BUG #4
+router.patch('/:username', authUser, requireLogin, requireAdmin, async function(req, res, next) {
   try {
     if (!req.curr_admin && req.curr_username !== req.params.username) {
-      throw new ExpressError('Only  that user or admin can edit a user.', 401);
+      throw new ExpressError('Only that user or admin can edit a user.', 401);
     }
 
-    // get fields to change; remove token so we don't try to change it
-    let fields = { ...req.body };
-    delete fields._token;
+    // Validate request parameters
+    const allowedFields = ['first_name', 'last_name', 'phone', 'email'];
+    for (let field in req.body) {
+      if (!allowedFields.includes(field)) {
+        throw new ExpressError(`Cannot update field '${field}'`, 400);
+      }
+    }
 
-    let user = await User.update(req.params.username, fields);
+    // Update user
+    let user = await User.update(req.params.username, req.body);
     return res.json({ user });
   } catch (err) {
     return next(err);
   }
-}); // end
+});
+// end
 
 /** DELETE /[username]
  *
@@ -94,17 +119,29 @@ router.patch('/:username', authUser, requireLogin, requireAdmin, async function(
  * If user cannot be found, return a 404 err.
  */
 
-router.delete('/:username', authUser, requireAdmin, async function(
-  req,
-  res,
-  next
-) {
+// CONTAINS BUG #5
+// router.delete('/:username', authUser, requireAdmin, async function(
+//   req,
+//   res,
+//   next
+// ) {
+//   try {
+//     User.delete(req.params.username);
+//     return res.json({ message: 'deleted' });
+//   } catch (err) {
+//     return next(err);
+//   }
+// }); 
+
+// FIXES BUG #5
+router.delete('/:username', authUser, requireAdmin, async function(req, res, next) {
   try {
-    User.delete(req.params.username);
+    await User.delete(req.params.username);
     return res.json({ message: 'deleted' });
   } catch (err) {
-    return next(err);
+    return next(new ExpressError('Failed to delete user', 500));
   }
-}); // end
+});
+// end
 
 module.exports = router;

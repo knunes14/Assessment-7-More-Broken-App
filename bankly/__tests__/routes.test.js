@@ -56,6 +56,7 @@ describe("POST /auth/register", function() {
     expect(admin).toBe(false);
   });
 
+  // FIXES BUG #1
   test("should not allow a user to register with an existing username", async function() {
     const response = await request(app)
       .post("/auth/register")
@@ -89,6 +90,38 @@ describe("POST /auth/login", function() {
     let { username, admin } = jwt.verify(response.body.token, SECRET_KEY);
     expect(username).toBe("u1");
     expect(admin).toBe(false);
+  });
+
+  // FIXES BUG #2
+  test("should return 401 if username/password is incorrect", async function() {
+    const response = await request(app)
+      .post("/auth/login")
+      .send({
+        username: "invalid_username",
+        password: "invalid_password"
+      });
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toEqual({ message: 'Invalid username or password' });
+  });
+
+  // FIXES BUG #3
+  test("should return 401 if an error occurs during authentication", async function() {
+    // Mock the User.authenticate function to throw an error
+    jest.spyOn(User, 'authenticate').mockImplementation(() => {
+      throw new Error('Authentication error');
+    });
+
+    const response = await request(app)
+      .post("/auth/login")
+      .send({
+        username: "u1",
+        password: "pwd1"
+      });
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toEqual({ message: 'Invalid username or password' });
+
+    // Restore the original implementation of User.authenticate
+    User.authenticate.mockRestore();
   });
 });
 
@@ -170,6 +203,19 @@ describe("PATCH /users/[username]", function() {
       .send({ _token: tokens.u3, first_name: "new-fn" }); // u3 is admin
     expect(response.statusCode).toBe(404);
   });
+
+  // FIXES BUG #4
+  test("should return 400 if request parameters contain disallowed fields", async function() {
+    const response = await request(app)
+      .patch("/users/u1")
+      .send({
+        _token: tokens.u1,
+        username: 'new_username' // Trying to update a non-existent field
+      });
+    
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({ message: `Cannot update field 'username'` });
+  });
 });
 
 describe("DELETE /users/[username]", function() {
@@ -191,6 +237,24 @@ describe("DELETE /users/[username]", function() {
       .send({ _token: tokens.u3 }); // u3 is admin
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual({ message: "deleted" });
+  });
+
+  // FIXES BUG #5
+  test("should return 500 if user deletion fails", async function() {
+    // Mock the User.delete function to throw an error
+    jest.spyOn(User, 'delete').mockImplementation(() => {
+      throw new Error('User deletion failed');
+    });
+
+    const response = await request(app)
+      .delete("/users/u1")
+      .send({ _token: tokens.u3 }); // u3 is admin
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual({ message: 'Failed to delete user' });
+
+    // Restore the original implementation of User.delete
+    User.delete.mockRestore();
   });
 });
 

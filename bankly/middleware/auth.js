@@ -44,6 +44,22 @@ function requireAdmin(req, res, next) {
  *
  **/
 
+// function authUser(req, res, next) {
+//   try {
+//     const token = req.body._token || req.query._token;
+//     if (token) {
+//       let payload = jwt.decode(token);
+//       req.curr_username = payload.username;
+//       req.curr_admin = payload.admin;
+//     }
+//     return next();
+//   } catch (err) {
+//     err.status = 401;
+//     return next(err);
+//   }
+// } // end
+
+// FIXES BUG #6 
 function authUser(req, res, next) {
   try {
     const token = req.body._token || req.query._token;
@@ -54,10 +70,16 @@ function authUser(req, res, next) {
     }
     return next();
   } catch (err) {
-    err.status = 401;
+    if (err.name === 'TokenExpiredError') {
+      // Token expired
+      err.status = 401;
+    } else {
+      // Other types of errors (e.g., invalid signature, malformed token)
+      err.status = 400;
+    }
     return next(err);
   }
-} // end
+}
 
 module.exports = {
   requireLogin,
